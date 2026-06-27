@@ -1,0 +1,16 @@
+services:
+  plusultra:
+    image: plusultra:latest
+    pull_policy: never
+    container_name: plusultra
+    restart: unless-stopped
+    ports:
+      - "3040:3001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - plusultra-data:/app/server/data
+    environment:
+      - PORT=3001
+
+volumes:
+  plusultra-data:
