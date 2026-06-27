@@ -24,7 +24,7 @@ import {
 import { getHostSystemInfo, getLiveHardwareStats } from './host-system.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8675;
 const server = http.createServer(app);
 
 app.use(cors());

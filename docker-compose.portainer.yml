@@ -5,12 +5,12 @@ services:
     container_name: plusultra
     restart: unless-stopped
     ports:
-      - "3040:3001"
+      - "8675:8675"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - plusultra-data:/app/server/data
     environment:
-      - PORT=3001
+      - PORT=8675
 
 volumes:
   plusultra-data:

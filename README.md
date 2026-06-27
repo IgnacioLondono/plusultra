@@ -35,7 +35,7 @@ npm run build
 npm start
 ```
 
-Abre **http://localhost:3001**
+Abre **http://localhost:8675**
 
 ## Con Docker
 
@@ -43,7 +43,7 @@ Abre **http://localhost:3001**
 docker compose up -d --build
 ```
 
-Abre **http://localhost:3040**
+Abre **http://localhost:8675**
 
 ## Configuración Docker
 
