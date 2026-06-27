@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
-import { getConfig, saveConfig, resetConfig } from './config.js';
+import { getConfig, saveConfig, resetConfig, getPublicConfig } from './config.js';
 import {
   getDocker,
   resetDockerClient,
@@ -22,6 +22,16 @@ import {
   getDockerEvents,
 } from './stacks.js';
 import { getHostSystemInfo, getLiveHardwareStats } from './host-system.js';
+import {
+  createSession,
+  destroySession,
+  verifyCredentials,
+  requireAuth,
+  getTokenFromRequest,
+  validateSession,
+  isPublicPath,
+} from './auth.js';
+import { saveBackground, getBackgroundFile, removeBackground } from './background.js';
 
 const app = express();
 const PORT = process.env.PORT || 8675;
@@ -29,6 +39,44 @@ const server = http.createServer(app);
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api') || isPublicPath(req.path)) return next();
+  return requireAuth(req, res, next);
+});
+
+// ─── Auth ─────────────────────────────────────────────────
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (!verifyCredentials(username, password)) {
+    return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  }
+  const token = createSession(username);
+  res.json({ token, user: username });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  destroySession(getTokenFromRequest(req));
+  res.json({ success: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const session = validateSession(getTokenFromRequest(req));
+  if (!session) return res.status(401).json({ error: 'No autenticado' });
+  res.json({ user: session.username });
+});
+
+app.get('/api/auth/public-config', (_req, res) => {
+  res.json(getPublicConfig());
+});
+
+app.get('/api/auth/background', (_req, res) => {
+  const file = getBackgroundFile();
+  if (!file) return res.status(404).end();
+  res.setHeader('Content-Type', file.mime);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.sendFile(file.filePath);
+});
 
 // ─── Config ───────────────────────────────────────────────
 app.get('/api/config', (_req, res) => {
@@ -38,6 +86,32 @@ app.get('/api/config', (_req, res) => {
 app.put('/api/config', (req, res) => {
   const updated = saveConfig(req.body);
   resetDockerClient();
+  res.json(updated);
+});
+
+app.post('/api/config/background', (req, res) => {
+  try {
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ error: 'Imagen requerida' });
+    saveBackground(image);
+    const updated = saveConfig({
+      backgroundType: 'image',
+      backgroundImage: '/api/auth/background',
+      backgroundVersion: Date.now(),
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/config/background', (_req, res) => {
+  removeBackground();
+  const updated = saveConfig({
+    backgroundImage: '',
+    backgroundType: 'gradient',
+    backgroundVersion: Date.now(),
+  });
   res.json(updated);
 });
 
@@ -354,7 +428,24 @@ app.post('/api/containers/:id/recreate', async (req, res) => {
 
     const updates = req.body || {};
     const config = inspect.Config;
-    const hostConfig = inspect.HostConfig;
+    const hostConfig = { ...inspect.HostConfig };
+
+    if (updates.ports && typeof updates.ports === 'object') {
+      const ExposedPorts = {};
+      const PortBindings = {};
+      for (const [containerPort, hostPort] of Object.entries(updates.ports)) {
+        const portKey = containerPort.includes('/') ? containerPort : `${containerPort}/tcp`;
+        ExposedPorts[portKey] = {};
+        PortBindings[portKey] = [{ HostPort: String(hostPort) }];
+      }
+      config.ExposedPorts = ExposedPorts;
+      hostConfig.PortBindings = PortBindings;
+    }
+
+    if (updates.memoryLimit != null) hostConfig.Memory = parseInt(updates.memoryLimit) || 0;
+    if (updates.memorySwap != null) hostConfig.MemorySwap = parseInt(updates.memorySwap) || 0;
+    if (updates.cpuShares != null) hostConfig.CpuShares = parseInt(updates.cpuShares) || 0;
+    if (updates.networkMode) hostConfig.NetworkMode = updates.networkMode;
 
     await oldContainer.stop({ t: 5 }).catch(() => {});
     await oldContainer.remove({ force: true });

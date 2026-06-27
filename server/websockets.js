@@ -1,5 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { getDocker } from './docker-client.js';
+import { validateSession } from './auth.js';
 
 /**
  * Demultiplex Docker log stream (8-byte header per frame).
@@ -32,6 +33,14 @@ export function setupWebSockets(server) {
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const { pathname } = url;
+
+    const token = url.searchParams.get('token')
+      || request.headers['sec-websocket-protocol']?.split(',')[0]?.trim();
+    if (!validateSession(token)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
 
     if (pathname === '/api/ws/terminal') {
       terminalWss.handleUpgrade(request, socket, head, (ws) => {

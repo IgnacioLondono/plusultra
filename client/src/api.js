@@ -1,18 +1,37 @@
+import { getAuthToken, setAuthToken } from './utils/auth.js';
+
 const API = '/api';
 
 export async function fetchJSON(url, options = {}) {
-  const res = await fetch(`${API}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  });
-  const data = await res.json();
+  const token = getAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API}${url}`, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !url.startsWith('/auth/')) {
+    setAuthToken(null);
+    window.dispatchEvent(new Event('plusultra:logout'));
+  }
   if (!res.ok) throw new Error(data.error || 'Error de servidor');
   return data;
 }
 
 export const api = {
+  login: (username, password) =>
+    fetchJSON('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  logout: () => fetchJSON('/auth/logout', { method: 'POST' }).catch(() => {}),
+  me: () => fetchJSON('/auth/me'),
+  getPublicConfig: () => fetchJSON('/auth/public-config'),
+
   getConfig: () => fetchJSON('/config'),
   saveConfig: (cfg) => fetchJSON('/config', { method: 'PUT', body: JSON.stringify(cfg) }),
+  uploadBackground: (image) =>
+    fetchJSON('/config/background', { method: 'POST', body: JSON.stringify({ image }) }),
+  removeBackground: () => fetchJSON('/config/background', { method: 'DELETE' }),
   resetConfig: () => fetchJSON('/config/reset', { method: 'POST' }),
 
   ping: () => fetchJSON('/system/ping'),

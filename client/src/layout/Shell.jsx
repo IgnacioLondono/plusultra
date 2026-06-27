@@ -45,7 +45,10 @@ export function PageHeader({ title, subtitle, actions, breadcrumb }) {
   );
 }
 
-export function Sidebar({ section, sub, onNavigate, connected }) {
+export function Sidebar({ section, sub, onNavigate, connected, config, user, onLogout }) {
+  const title = config?.appTitle || 'Plusultra';
+  const subtitle = config?.appSubtitle || 'Panel Docker universal';
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -54,8 +57,8 @@ export function Sidebar({ section, sub, onNavigate, connected }) {
             <Layers size={22} strokeWidth={2.2} />
           </div>
           <div>
-            <div className="brand-name">Plusultra</div>
-            <div className="brand-sub">Container Management</div>
+            <div className="brand-name">{title}</div>
+            <div className="brand-sub">{subtitle}</div>
           </div>
         </div>
       </div>
@@ -98,6 +101,12 @@ export function Sidebar({ section, sub, onNavigate, connected }) {
       </nav>
 
       <div className="sidebar-footer">
+        {user && (
+          <div className="sidebar-user">
+            <span className="sidebar-user-name">{user}</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onLogout}>Salir</button>
+          </div>
+        )}
         <div className={`connection-badge ${connected ? 'online' : 'offline'}`}>
           <span className="connection-dot" />
           <div>

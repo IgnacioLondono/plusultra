@@ -19,6 +19,8 @@ import {
   Sliders,
   Plug,
   Server,
+  Settings2,
+  Palette,
 } from 'lucide-react';
 
 export const NAVIGATION = [
@@ -38,6 +40,7 @@ export const NAVIGATION = [
     subs: [
       { id: 'list', label: 'Listado', Icon: List },
       { id: 'create', label: 'Crear', Icon: Plus },
+      { id: 'configure', label: 'Configurar', Icon: Settings2 },
       { id: 'stats', label: 'Estadísticas', Icon: BarChart3 },
     ],
   },
@@ -94,6 +97,7 @@ export const NAVIGATION = [
     Icon: Settings,
     subs: [
       { id: 'general', label: 'General', Icon: Sliders },
+      { id: 'appearance', label: 'Apariencia', Icon: Palette },
       { id: 'docker', label: 'Conexión Docker', Icon: Plug },
     ],
   },

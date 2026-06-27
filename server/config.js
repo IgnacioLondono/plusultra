@@ -22,7 +22,34 @@ const DEFAULT_CONFIG = {
   savedComposeStacks: [],
   favoriteContainers: [],
   customLabels: {},
+  appTitle: 'Plusultra',
+  appSubtitle: 'Panel Docker universal',
+  backgroundType: 'gradient',
+  backgroundColor: '#0f1117',
+  backgroundGradient: 'linear-gradient(135deg, #0f1117 0%, #1a1035 50%, #0f1117 100%)',
+  backgroundImage: '',
+  backgroundVersion: 0,
+  backgroundOverlay: 0.35,
+  sidebarOpacity: 1,
+  panelOpacity: 0.92,
 };
+
+export function getPublicConfig(config = getConfig()) {
+  return {
+    appTitle: config.appTitle,
+    appSubtitle: config.appSubtitle,
+    theme: config.theme,
+    accentColor: config.accentColor,
+    backgroundType: config.backgroundType,
+    backgroundColor: config.backgroundColor,
+    backgroundGradient: config.backgroundGradient,
+    backgroundImage: config.backgroundImage,
+    backgroundVersion: config.backgroundVersion,
+    backgroundOverlay: config.backgroundOverlay,
+    sidebarOpacity: config.sidebarOpacity,
+    panelOpacity: config.panelOpacity,
+  };
+}
 
 function ensureDataDir() {
   const dir = path.dirname(CONFIG_PATH);

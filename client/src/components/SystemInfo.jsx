@@ -5,6 +5,7 @@ import {
 import { api } from '../api';
 import { Loading, ConnectionBanner, useSilentLoad, RefreshIndicator } from './shared';
 import HardwareModal, { ClickableSpecCard } from './HardwareModal';
+import { MetricBarChart } from './Charts';
 
 function UsageBar({ percent, color }) {
   const p = Math.min(100, Math.max(0, parseFloat(percent) || 0));
@@ -272,7 +273,7 @@ export default function SystemInfo({ connected, config }) {
   );
 }
 
-export function ContainerStats({ connected, addToast }) {
+export function ContainerStats({ connected, addToast, config }) {
   const [containers, setContainers] = useState([]);
   const { initialLoading, refreshing, run } = useSilentLoad();
 
@@ -297,9 +298,38 @@ export function ContainerStats({ connected, addToast }) {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!config?.autoRefresh || !connected) return;
+    const id = setInterval(load, config.refreshInterval);
+    return () => clearInterval(id);
+  }, [load, config, connected]);
+
+  const chartData = containers.map((c) => ({
+    name: c.name.length > 10 ? `${c.name.slice(0, 10)}…` : c.name,
+    cpu: parseFloat(c.stats?.cpuPercent) || 0,
+    mem: parseFloat(c.stats?.memPercent) || 0,
+  }));
+
   if (initialLoading) return <Loading />;
 
   return (
+    <div>
+      {containers.length > 0 && (
+        <div className="panel" style={{ marginBottom: 20 }}>
+          <div className="panel-header"><Container size={16} /><h3>Gráficos de uso por contenedor</h3></div>
+          <div className="panel-body">
+            <MetricBarChart
+              data={chartData}
+              bars={[
+                { key: 'cpu', name: 'CPU %', color: '#3b82f6' },
+                { key: 'mem', name: 'Memoria %', color: '#8b5cf6' },
+              ]}
+              height={280}
+            />
+          </div>
+        </div>
+      )}
+
     <div className="table-wrap">
       <div className="table-toolbar">
         <span className="toolbar-count">Uso de recursos — contenedores activos</span>
@@ -326,6 +356,7 @@ export function ContainerStats({ connected, addToast }) {
           </tbody>
         </table>
       )}
+    </div>
     </div>
   );
 }

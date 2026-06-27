@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, LogOut } from 'lucide-react';
 import { api } from './api';
 import { useToast } from './components/shared';
 import { Sidebar, SubTabs, PageHeader } from './layout/Shell';
 import { NAVIGATION, getNavItem, getBreadcrumb } from './navigation';
+import { getAuthToken, setAuthToken } from './utils/auth';
+import { applyAppearance, pickPublicAppearance } from './utils/theme';
+import Login from './components/Login';
 
 import Dashboard from './components/Dashboard';
 import Containers from './components/Containers';
@@ -17,8 +20,12 @@ import Settings from './components/Settings';
 import Stacks from './components/Stacks';
 import Events from './components/Events';
 import SystemInfo, { ContainerStats } from './components/SystemInfo';
+import ContainerConfigure from './components/ContainerConfigure';
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [publicConfig, setPublicConfig] = useState(null);
   const [section, setSection] = useState('home');
   const [sub, setSub] = useState('overview');
   const [config, setConfig] = useState(null);
@@ -32,27 +39,89 @@ export default function App() {
   }, []);
 
   const checkConnection = useCallback(async () => {
+    if (!user) return;
     try {
       const result = await api.ping();
       setConnected(result.ok);
     } catch {
       setConnected(false);
     }
+  }, [user]);
+
+  const handleConfigSave = useCallback((cfg) => {
+    setConfig(cfg);
+    setPublicConfig(pickPublicAppearance(cfg));
+    applyAppearance(cfg);
   }, []);
 
-  useEffect(() => {
-    api.getConfig().then((cfg) => {
-      setConfig(cfg);
-      document.documentElement.style.setProperty('--accent', cfg.accentColor);
-    });
-    checkConnection();
-  }, [checkConnection]);
+  const handleConfigPreview = useCallback((preview) => {
+    setConfig((prev) => (prev ? { ...prev, ...preview } : preview));
+  }, []);
+
+  const loadPublicConfig = useCallback(async () => {
+    try {
+      const cfg = await api.getPublicConfig();
+      setPublicConfig(cfg);
+      applyAppearance(cfg);
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await api.logout();
+    setAuthToken(null);
+    setUser(null);
+    setConfig(null);
+    loadPublicConfig();
+  }, [loadPublicConfig]);
 
   useEffect(() => {
-    if (!config?.autoRefresh) return;
+    loadPublicConfig();
+    const token = getAuthToken();
+    if (!token) {
+      setAuthChecking(false);
+      return;
+    }
+    api.me()
+      .then(({ user: u }) => setUser(u))
+      .catch(() => setAuthToken(null))
+      .finally(() => setAuthChecking(false));
+
+    const onLogout = () => handleLogout();
+    window.addEventListener('plusultra:logout', onLogout);
+    return () => window.removeEventListener('plusultra:logout', onLogout);
+  }, [handleLogout, loadPublicConfig]);
+
+  useEffect(() => {
+    if (!user) return;
+    api.getConfig().then((cfg) => {
+      handleConfigSave(cfg);
+    });
+    checkConnection();
+  }, [user, checkConnection, handleConfigSave]);
+
+  useEffect(() => {
+    if (!config?.autoRefresh || !user) return;
     const id = setInterval(checkConnection, config.refreshInterval);
     return () => clearInterval(id);
-  }, [checkConnection, config]);
+  }, [checkConnection, config, user]);
+
+  const onLogin = (username) => {
+    setUser(username);
+    setAuthChecking(false);
+  };
+
+  if (authChecking) {
+    return (
+      <div className="loading-center" style={{ minHeight: '100vh' }}>
+        <div className="spinner" />
+        <span>Cargando Plusultra...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login publicConfig={publicConfig} onLogin={onLogin} />;
+  }
 
   const navItem = getNavItem(section);
   const breadcrumb = getBreadcrumb(section, sub);
@@ -63,7 +132,7 @@ export default function App() {
       return (
         <div className="loading-center">
           <div className="spinner" />
-          <span>Cargando Plusultra...</span>
+          <span>Cargando configuración...</span>
         </div>
       );
     }
@@ -75,6 +144,7 @@ export default function App() {
       case 'containers':
         if (sub === 'create') return <Launch {...props} onLaunched={() => navigate('containers', 'list')} />;
         if (sub === 'stats') return <ContainerStats {...props} />;
+        if (sub === 'configure') return <ContainerConfigure {...props} />;
         return (
           <Containers
             {...props}
@@ -109,7 +179,15 @@ export default function App() {
           />
         );
       case 'settings':
-        return <Settings config={config} onSave={setConfig} addToast={addToast} sub={sub} />;
+        return (
+          <Settings
+            config={config}
+            onSave={handleConfigSave}
+            onPreview={handleConfigPreview}
+            addToast={addToast}
+            sub={sub}
+          />
+        );
       default:
         return null;
     }
@@ -117,7 +195,15 @@ export default function App() {
 
   return (
     <div className="app-layout">
-      <Sidebar section={section} sub={sub} onNavigate={navigate} connected={connected} />
+      <Sidebar
+        section={section}
+        sub={sub}
+        onNavigate={navigate}
+        connected={connected}
+        config={config}
+        user={user}
+        onLogout={handleLogout}
+      />
 
       <main className="main-content">
         <div className="content-inner">
@@ -125,9 +211,14 @@ export default function App() {
             breadcrumb={breadcrumb}
             title={breadcrumb.sub || breadcrumb.section}
             actions={
-              <button type="button" className="btn btn-ghost btn-icon" onClick={checkConnection} title="Actualizar conexión">
-                <RefreshCw size={16} />
-              </button>
+              <>
+                <button type="button" className="btn btn-ghost btn-icon" onClick={checkConnection} title="Actualizar conexión">
+                  <RefreshCw size={16} />
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={handleLogout} title="Cerrar sesión">
+                  <LogOut size={16} /> Salir
+                </button>
+              </>
             }
           />
 

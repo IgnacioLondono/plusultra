@@ -5,6 +5,8 @@ import {
 import { api } from '../api';
 import { Loading, ConnectionBanner, StateBadge, useSilentLoad, RefreshIndicator } from './shared';
 import HardwareModal from './HardwareModal';
+import { MetricAreaChart, MetricBarChart } from './Charts';
+import { useMetricHistory } from '../hooks/useMetricHistory';
 
 export default function Dashboard({ connected, config }) {
   const [info, setInfo] = useState(null);
@@ -41,6 +43,19 @@ export default function Dashboard({ connected, config }) {
     const id = setInterval(load, config.refreshInterval);
     return () => clearInterval(id);
   }, [load, config]);
+
+  const hostHistory = useMetricHistory(async () => {
+    const live = await api.getHostLive();
+    return {
+      cpu: parseFloat(live?.cpu?.overall ?? 0),
+      ram: parseFloat(live?.memory?.usedPercent ?? 0),
+    };
+  }, config?.refreshInterval || 5000, 24, connected);
+
+  const containerBarData = containers.slice(0, 6).map((c) => ({
+    name: c.name.length > 12 ? `${c.name.slice(0, 12)}…` : c.name,
+    estado: c.state === 'running' ? 1 : 0,
+  }));
 
   if (initialLoading) return <Loading />;
 
@@ -94,6 +109,32 @@ export default function Dashboard({ connected, config }) {
         dockerInfo={info}
         connected={connected}
       />
+
+      <div className="charts-row">
+        <div className="panel flex-1">
+          <div className="panel-header"><Cpu size={16} /><h3>Uso del sistema en tiempo real</h3></div>
+          <div className="panel-body">
+            <MetricAreaChart
+              data={hostHistory}
+              lines={[
+                { key: 'cpu', name: 'CPU %', color: '#3b82f6' },
+                { key: 'ram', name: 'RAM %', color: '#8b5cf6' },
+              ]}
+              height={240}
+            />
+          </div>
+        </div>
+        <div className="panel flex-1">
+          <div className="panel-header"><Container size={16} /><h3>Estado de contenedores</h3></div>
+          <div className="panel-body">
+            <MetricBarChart
+              data={containerBarData}
+              bars={[{ key: 'estado', name: 'Activo', color: 'var(--accent)' }]}
+              height={240}
+            />
+          </div>
+        </div>
+      </div>
 
       <div className="dashboard-panels">
         <div className="panel flex-1">
